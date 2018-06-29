@@ -1,42 +1,90 @@
 <?php
 
-namespace App\Ratings;
+namespace App\Http\Controllers;
 
+use App\HeaderCheck;
+use App\DomxssCheck;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use GuzzleHttp\Client;
-use App\HTTPResponse;
+use Illuminate\Support\Facades\Log;
 
-
-class XContentTypeOptionsRating extends Rating
+class ApiController extends Controller
 {
 
-    public function __construct(HTTPResponse $response) {
-        parent::__construct($response);
+    public function headerReport(Request $request) {
 
-        $this->name = "X_CONTENT_TYPE_OPTIONS";
-        $this->scoreType = "warning";
+        $this->checkSiwecosRequest($request);
+
+        $check = new HeaderCheck($request->json('url'));
+
+        $this->notifyCallbacks($request->json('callbackurls'), $check);
+
+        return "OK";
     }
 
-    protected function rate()
-    {
-        $header = $this->getHeader('x-content-type-options');
+    public function domxssReport(Request $request){
 
-        if ($header === null) {
-            $this->hasError = true;
-            $this->errorMessage = "HEADER_NOT_SET";
-        } elseif (count($header) > 1) {
-            $this->hasError = true;
-            $this->errorMessage = "HEADER_SET_MULTIPLE_TIMES";
-            $this->testDetails->push(['placeholder' => 'HEADER_SET_MULTIPLE_TIMES', 'values' => ['HEADER' => $header]]);
-        } else {
-            $header = $header[0];
+        $this->checkSiwecosRequest($request);
 
-            if (strpos($header, 'nosniff') !== false) {
-                $this->score = 100;
-                $this->testDetails->push(['placeholder' => 'XCTO_CORRECT', 'values' => ['HEADER' => $header]]);
+        $check = new DomxssCheck($request->json('url'));
+
+        $this->notifyCallbacks($request->json('callbackurls'), $check);
+
+        return "OK";
+    }
+
+    protected function checkSiwecosRequest(Request $request) {
+        $validator = Validator::make($request->all(), [
+            'url' => 'required|url',
+            'dangerLevel' => 'integer|min:0|max:10',
+            'callbackurls' => 'required|array',
+            'callbackurls.*' => 'url'
+        ]);
+
+        if ($validator->fails()) {
+            return $validator->errors();
+        }
+
+        return true;
+    }
+
+    protected function notifyCallbacks(array $callbackurls, $check) {
+        $report = $check->report();
+        foreach ($callbackurls as $url) {
+            try {
+                $client = new Client();
+                $client->post($url, [
+                    'http_errors' => false,
+                    'timeout' => 60,
+                    'json' => $report
+                ]);
             }
-            else {
-                $this->testDetails->push(['placeholder' => 'XCTO_NOT_CORRECT', 'values' => ['HEADER' => $header]]);
+            catch (\Exception $e) {
+                Log::debug($e);
+                Log::debug("Trying to send an error");
+                try {
+                  $client->post($url, [
+                      'http_errors' => false,
+                      'timeout' => 60,
+                      'json' => [
+                        "name" => "HEADER",
+                        "hasError" => "true",
+                        "score" => 0,
+                        "errorMessage" => [
+                                "placeholder" => "GENERAL_ERROR",
+                                "values" => [
+                                        "ERRORTEXT" => $e->getMessage()
+                                ]
+                        ]
+                     ]
+                  ]);
+                }
+                catch (\Exception $e) {
+                    Log::debug($e);
+                }
             }
         }
     }
+
 }
