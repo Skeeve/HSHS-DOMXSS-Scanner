@@ -23,6 +23,15 @@ class XContentTypeOptionsRating extends Rating
         if ($header === null) {
             $this->hasError = true;
             $this->errorMessage = "HEADER_NOT_SET";
+        } elseif ( gettype($header) === "string" ) {
+            $this->hasError = true;
+            $this->errorMessage = "GENERAL_ERROR";
+            $this->testDetails->push([
+ 		'placeholder' => 'GENERAL_ERROR',
+		'values' => [
+			'ERRORTEXT' => $header
+		]
+	    ]);
         } elseif (count($header) > 1) {
             $this->hasError = true;
             $this->errorMessage = "HEADER_SET_MULTIPLE_TIMES";
@@ -40,3 +49,4 @@ class XContentTypeOptionsRating extends Rating
         }
     }
 }
+
