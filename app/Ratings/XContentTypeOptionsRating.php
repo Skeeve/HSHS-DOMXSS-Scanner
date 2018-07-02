@@ -25,11 +25,11 @@ class XContentTypeOptionsRating extends Rating
             $this->errorMessage = "HEADER_NOT_SET";
         } elseif ( gettype($header) === "string" ) {
             $this->hasError = true;
-            $this->errorMessage = "GENERAL_ERROR";
+            $this->errorMessage = "HEADER_ENCODING_ERROR";
             $this->testDetails->push([
-           		'placeholder' => 'GENERAL_ERROR',
+           		'placeholder' => 'HEADER_ENCODING_ERROR',
           		'values' => [
-          			'ERRORTEXT' => $header
+          			'HEADER' => $header
           		]
 	           ]);
         } elseif (count($header) > 1) {
